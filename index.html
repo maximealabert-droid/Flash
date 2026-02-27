@@ -1,0 +1,1333 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simulation multi-utilisateurs — V2 (optimisée)</title>
+  <style>
+    :root { --bg:#0b1020; --card:#141b34; --text:#eaf0ff; --muted:#9fb0d0; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+    header{
+      position: sticky; top:0; z-index:10;
+      background: rgba(11,16,32,.95); backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      padding: 12px 16px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    label { color: var(--muted); font-size:14px; }
+    select, input{
+      padding: 8px 10px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.15);
+      background: var(--card); color: var(--text);
+    }
+    input[type="date"], input[type="datetime-local"]{ color-scheme: dark; }
+    nav.tabs { display:flex; gap:8px; flex-wrap:wrap; }
+    button.tab{
+      font-size: 18px;
+      padding: 14px 22px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: transparent; color: var(--text); cursor:pointer;
+    }
+    button.tab[aria-selected="true"]{
+      background: var(--card);
+      border-color: rgba(255,255,255,.22);
+    }
+    main { padding:16px; max-width:980px; margin:0 auto; }
+
+    .card{
+      background: rgba(20,27,52,.75);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .muted{ color: var(--muted); }
+    .fields{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin: 12px 0; }
+    @media (max-width: 800px){ .fields{ grid-template-columns: 1fr; } }
+
+    /* FORCE offers to always stack vertically */
+    .offers{
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .offer{
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.15);
+      cursor: default;
+      user-select: none;
+    }
+
+    .pill{
+      display:inline-block; padding: 3px 8px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      font-size: 12px;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+    .offer .top{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:8px }
+    .ring{ width: 42px; height: 42px; }
+    .ring circle{
+      fill:none;
+      stroke-width:6;
+      stroke-linecap:round;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+    .ring .bg{ stroke: rgba(255,255,255,.15); }
+    .ring .fg{ stroke: #9fb0d0; transition: stroke-dashoffset .6s linear; }
+    .countdown{ color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+    .offer .date{ color:var(--muted); font-size: 13px; white-space:nowrap }
+    .offer .meta{ color:var(--muted); font-size: 13px; margin-top: 8px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap }
+
+    .toggleBox{
+      display:flex; align-items:center; gap:8px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+    }
+    .toggleBox input{ width: 16px; height:16px; padding:0; margin:0; }
+    .toggleBox span{ font-size: 13px; color: var(--text); }
+
+    .actions{ display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-top: 8px; }
+    button.primary{
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10);
+      color: var(--text);
+      cursor:pointer;
+    }
+
+    .toast{
+      position: fixed; bottom: 14px; left: 14px;
+      background: rgba(20,27,52,.92);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      padding: 10px 12px;
+      color: var(--text);
+      display:none;
+      z-index: 60;
+    }
+    .toast.show{ display:block; }
+    select{ font-size: 20px; padding: 14px 18px; }
+  
+    /* FORCE very light corner radius for all pill-like objects */
+    .pill,
+    .statusBox .pill,
+    .offer .pill{
+      border-radius: 3px !important;
+    }
+
+  
+    /* Buyer offer description toggle */
+    .descBtn{
+      margin-top: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .offerDesc{
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(255,255,255,.15);
+      font-size: 13px;
+      color: var(--muted);
+      display: none;
+    }
+    .offerDesc.open{
+      display: block;
+    }
+
+  
+    /* Publish layout: fields stacked, labels above inputs */
+    #content .fields{
+      display: grid;
+      grid-template-columns: 1fr !important;
+      gap: 12px;
+    }
+    #content .fields > div{
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    #content .fields label{
+      margin-bottom: 6px;
+      text-align: left;
+    }
+
+  
+    /* Publish: Minimum / Maximum d’achat always visible */
+    .valueBlock{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .valueRow{
+      display: flex;
+      gap: 12px;
+    }
+    .field{
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+  </style>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  // --- Seller modal (buyer offer -> click seller name) ---
+  function sellerDisplayName(sellerId){
+    const u = getUser(sellerId);
+    const p = state?.[sellerId]?.profile || u?.profile || {};
+    return p.nom || u?.label || sellerId || "-";
+  }
+  function sellerAddress(sellerId){
+    const u = getUser(sellerId);
+    const p = state?.[sellerId]?.profile || u?.profile || {};
+    return p.adresse || p.address || "-";
+  }
+  function openSellerModal(sellerId){
+    const overlay = document.getElementById("sellerModal");
+    const body = document.getElementById("sellerModalBody");
+    if (!overlay || !body) return;
+    body.innerHTML = `
+      <div style="margin-bottom:8px">Nom : <b>${escapeHtml(sellerDisplayName(sellerId))}</b></div>
+      <div>Adresse : <b>${escapeHtml(sellerAddress(sellerId))}</b></div>
+    
+      <div style="margin-top:12px">
+        <iframe
+          width="100%"
+          height="220"
+          style="border:0; border-radius:12px"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          src="https://www.google.com/maps?q=${encodeURIComponent(sellerAddress(sellerId))}&output=embed">
+        </iframe>
+      </div>
+`;
+    overlay.style.display = "flex";
+  }
+  function closeSellerModal(){
+    const overlay = document.getElementById("sellerModal");
+    if (overlay) overlay.style.display = "none";
+  }
+
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest(".sellerLink");
+    if (link) {
+      e.preventDefault();
+      e.stopPropagation();
+      const sellerId = link.dataset.sellerId;
+      if (sellerId) openSellerModal(sellerId);
+      return;
+    }
+    if (e.target && (e.target.id === "sellerModal")) closeSellerModal();
+  });
+
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "sellerModalClose") closeSellerModal();
+  });
+
+</script>
+
+<style>
+  .statusBox{
+    position:absolute;
+    top:12px;
+    right:12px;
+    z-index:2;
+  }
+</style>
+
+
+<style>
+  </style>
+
+
+<style>
+  /* Couleurs fortes pour le statut unique (prioritaire sur les styles existants) */
+  .statusBox .pill{
+    border: none !important;
+  }
+  .statusBox .pill[data-status="Validé"]{
+    background-color: #1fa34a !important;
+    color: #ffffff !important;
+  }
+  .statusBox .pill[data-status="Réservé"]{
+    background-color: #4da3ff !important;
+    color: #ffffff !important;
+  }
+</style>
+
+
+<style>
+  .sellerLink{ cursor:pointer; text-decoration:underline; }
+  .modalOverlay{
+    position:fixed; inset:0; z-index:9999;
+    background:rgba(0,0,0,.6);
+    align-items:center; justify-content:center;
+    padding:16px;
+  }
+  .modalCard{ max-width:420px; width:100%; }
+  .ghostBtn{
+    border:none; background:transparent; cursor:pointer;
+    font-size:18px; line-height:1; padding:6px 10px;
+    border-radius:10px;
+  }
+</style>
+
+
+<style>
+  /* Statut Validé en vert (offres acheteur) */
+  .pill[data-status="Validé"]{
+    background-color:#1fa34a !important;
+    color:#ffffff !important;
+    border:none !important;
+  }
+</style>
+
+
+<style>
+  /* Statut Réservé en bleu clair (offres acheteur) */
+  .pill[data-status="Réservé"]{
+    background-color:#4da3ff !important;
+    color:#ffffff !important;
+    border:none !important;
+  }
+</style>
+
+</head>
+<body>
+
+<header>
+  <div class="row">
+    <label for="userSelect">Utilisateur</label>
+    <select id="userSelect"></select>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+
+<main id="content"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+  // =========================
+  // Données / contextes
+  // =========================
+  const CONTEXTS = {
+    vendeur: ["Home","Offres","Publish","Scan"],
+    acheteur: ["Home","Offres","Favoris"]
+  };
+
+  const USERS = [
+    {id:"vendeur1",label:"Vendeur1",context:"vendeur",profile:{nom:"Paul Martin", adresse:"12 rue des Lilas, 75010 Paris"}, location:{lat:48.8721,lng:2.3656}},
+    {id:"vendeur2",label:"Vendeur2",context:"vendeur",profile:{nom:"Claire Dubois", adresse:"48 avenue Victor Hugo, 69002 Lyon"}, location:{lat:45.7578,lng:4.8320}},
+    {id:"acheteur1",label:"Acheteur1",context:"acheteur",profile:{nom:"Lucas Bernard", adresse:"5 boulevard de la République, 31000 Toulouse"}},
+    {id:"acheteur2",label:"Acheteur2",context:"acheteur",profile:{nom:"Emma Lefèvre", adresse:"22 rue Nationale, 59000 Lille"}},
+  ];
+
+  // =========================
+  // LocalStorage keys
+  // =========================
+  const OFFERS_KEY      = "offers.reverse.v1";
+  const OFFERS_SEQ_KEY  = "offers.seq.rev";
+  const STATE_KEY       = "multiUserState.v1.base";
+  const FAVS_KEY        = "favorites.byBuyer.v1";
+  const VALID_KEY       = "validated.byBuyer.v1";
+  const RESERVE_KEY     = "reserved.byBuyer.v1";
+  const TX_STATUS_KEY = "txStatus.byOfferBuyer.v1"; // { offerId: { buyerId: "Validé" } }
+
+  // =========================
+  // Helpers JSON storage
+  // =========================
+  function loadJSON(key, fallback){
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  function saveJSON(key, value){
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  // Offres
+  function loadOffers(){ return loadJSON(OFFERS_KEY, []); }
+  function saveOffers(o){ saveJSON(OFFERS_KEY, o); }
+
+  function nextOfferId(){
+    if (globalThis.crypto && crypto.randomUUID) return crypto.randomUUID();
+    let n = +localStorage.getItem(OFFERS_SEQ_KEY) || 0;
+    n += 1; localStorage.setItem(OFFERS_SEQ_KEY, String(n));
+    const ts = Date.now().toString(36);
+    const rnd = Math.random().toString(36).slice(2, 8);
+    return `off_${ts}_${n}_${rnd}`;
+  }
+
+  // =========================
+  // State (tab + profile + buyerPrefs)
+  // =========================
+  const state = loadJSON(STATE_KEY, {});
+  function saveState(){ saveJSON(STATE_KEY, state); }
+
+  function getUser(id){ return USERS.find(u => u.id === id); }
+
+  function ensureUser(u){
+    state[u.id] ??= { tab: "Home", profile: { ...u.profile } };
+    state[u.id].profile ??= { ...u.profile };
+
+    // Acheteur: préférences persistées dans le state (même logique que Nom/Adresse)
+    if (u.context === "acheteur") {
+      state[u.id].buyerPrefs ??= {};
+      if (!("emplacement" in state[u.id].buyerPrefs)) state[u.id].buyerPrefs.emplacement = null;
+      if (!Array.isArray(state[u.id].buyerPrefs.categories)) state[u.id].buyerPrefs.categories = [];
+      if (typeof state[u.id].pointsFlash !== "number") state[u.id].pointsFlash = 0;
+    }
+    saveState();
+  }
+
+  // =========================
+  // Favs / Valid / Reserve (par acheteur)
+  // =========================
+  function loadFavsAll(){ return loadJSON(FAVS_KEY, {}); }
+  function saveFavsAll(obj){ saveJSON(FAVS_KEY, obj); }
+  function isFav(buyerId, offerId){
+    const all = loadFavsAll();
+    return !!(all[buyerId] && all[buyerId][offerId]);
+  }
+  function setFav(buyerId, offerId, flag){
+    const all = loadFavsAll();
+    all[buyerId] ??= {};
+    if (flag) all[buyerId][offerId] = true;
+    else delete all[buyerId][offerId];
+    saveFavsAll(all);
+  }
+  function favIdsForBuyer(buyerId){
+    const all = loadFavsAll();
+    return new Set(Object.keys(all[buyerId] || {}));
+  }
+  function countFavsForOffer(offerId){
+    const all = loadFavsAll();
+    let n = 0;
+    for (const buyerId of Object.keys(all)) if (all[buyerId] && all[buyerId][offerId]) n += 1;
+    return n;
+  }
+
+  // VALIDATION MANUELLE DÉSACTIVÉE
+  // Le statut "Validé" provient UNIQUEMENT du scan vendeur (TX_STATUS_KEY)
+  function isValid(){
+    return false;
+  }
+  function setValid(){
+    // no-op volontaire
+  }
+  function countValidForOffer(offerId){
+    const all = loadTxAll();
+    const buyers = all?.[offerId];
+    if (!buyers) return 0;
+    return Object.values(buyers).filter(v => v === "Validé").length;
+  }
+
+  function loadReserveAll(){ return loadJSON(RESERVE_KEY, {}); }
+  function saveReserveAll(obj){ saveJSON(RESERVE_KEY, obj); }
+  function isReserved(buyerId, offerId){
+    const all = loadReserveAll();
+    return !!(all[buyerId] && all[buyerId][offerId]);
+  }
+  function setReserved(buyerId, offerId, flag){
+    const all = loadReserveAll();
+    all[buyerId] ??= {};
+    if (flag) all[buyerId][offerId] = true;
+    else delete all[buyerId][offerId];
+    saveReserveAll(all);
+  }
+
+
+  function loadTxAll(){ try { return JSON.parse(localStorage.getItem(TX_STATUS_KEY) || "{}"); } catch { return {}; } }
+  function saveTxAll(obj){ localStorage.setItem(TX_STATUS_KEY, JSON.stringify(obj)); }
+  function getTxStatus(offerId, buyerId){
+    const all = loadTxAll();
+    return all?.[offerId]?.[buyerId] || null;
+  }
+  function setTxStatus(offerId, buyerId, status){
+    const all = loadTxAll();
+    all[offerId] ??= {};
+    if (status) all[offerId][buyerId] = status;
+    else delete all[offerId][buyerId];
+    saveTxAll(all);
+  }
+
+
+  // =========================
+  // UI refs
+  // =========================
+  const userSelect = document.getElementById("userSelect");
+  const tabsEl = document.getElementById("tabs");
+  const content = document.getElementById("content");
+  const toast = document.getElementById("toast");
+
+  function showToast(text){
+    toast.textContent = text;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 1400);
+  }
+
+  function escapeHtml(str){
+    return String(str ?? "")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  // =========================
+  // Expiration / countdown
+  // =========================
+  function parseDateMs(d){ return d ? new Date(d).getTime() : null; }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  // --- Statut offre acheteur (calculé) ---
+  function statut_offre_acheteur(emplacement, distance){
+    if (emplacement == null || distance == null) return null;
+    if (Number(distance) === Number(emplacement)) return "Réservé";
+    if (Math.abs(Number(emplacement) - Number(distance)) === 1) return "Zone";
+    return null;
+  }
+
+
+  function displayBuyerOfferStatus(offer, buyerId){
+    const tx = getTxStatus(offer.id, buyerId);
+    if (tx === "Validé") return "Validé";
+    const emp = state[buyerId]?.buyerPrefs?.emplacement ?? null;
+    return statut_offre_acheteur(emp, offer.distance);
+  }
+
+
+  function countReservedBuyersForOffer(offer){
+    let count = 0;
+    for (const u of USERS) {
+      if (u.context !== "acheteur") continue;
+      const emp = state[u.id]?.buyerPrefs?.emplacement;
+      const status = statut_offre_acheteur(emp, offer.distance);
+      if (status === "Réservé") count++;
+    }
+    return count;
+  }
+
+
+
+  // Progression 0..1 basée sur (NOW - createdAt) / (expiresAt - createdAt)
+  // Fallback: fenêtre 24h avant expiration si createdAt absent.
+  function expiryProgress(exp, createdAt){
+    const end = parseDateMs(exp);
+    if (!end) return 0;
+    const now = Date.now();
+
+    let start = Number(createdAt);
+    if (!start || !Number.isFinite(start)) start = end - (1000 * 60 * 60 * 24);
+
+    if (now <= start) return 0;
+    if (now >= end) return 1;
+    return clamp((now - start) / (end - start), 0, 1);
+  }
+
+  function remainingText(exp){
+    const end = parseDateMs(exp);
+    if (!end) return "--:--:--";
+    let ms = end - Date.now();
+    if (ms <= 0) return "00:00:00";
+    const totalSec = Math.floor(ms / 1000);
+    const h = String(Math.floor(totalSec / 3600)).padStart(2, "0");
+    const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, "0");
+    const s = String(totalSec % 60).padStart(2, "0");
+    return `${h}:${m}:${s}`;
+  }
+
+
+  // --- Area (Emplacement - Distance) ---
+  function computeArea(buyerId, offer){
+    const emp = state?.[buyerId]?.buyerPrefs?.emplacement;
+    const dist = offer?.distance;
+    if (emp == null || dist == null) return null;
+    const a = Math.abs(Number(emp) - Number(dist));
+    if (!Number.isFinite(a)) return null;
+    return a;
+  }
+
+
+  // =========================
+  // Tabs
+  // =========================
+  function renderTabs(u){
+    ensureUser(u);
+    const tabs = CONTEXTS[u.context];
+    if (!tabs.includes(state[u.id].tab)) state[u.id].tab = "Home";
+
+    tabsEl.innerHTML = tabs.map(t =>
+      `<button class="tab" data-tab="${t}" aria-selected="${t === state[u.id].tab}">${t}</button>`
+    ).join("");
+
+    [...tabsEl.querySelectorAll(".tab")].forEach(btn => {
+      btn.addEventListener("click", () => {
+        state[u.id].tab = btn.dataset.tab;
+        saveState();
+        render(u);
+      });
+    });
+  }
+
+  // =========================
+  // Offers cards
+  // =========================
+  function renderOffers(u, mode){
+    const allOffers = loadOffers();
+
+    const selectedCats = (u.context === "acheteur")
+      ? (state[u.id]?.buyerPrefs?.categories || [])
+      : null;
+    const catSet = (u.context === "acheteur") ? new Set(selectedCats) : null;
+
+    let visible = [];
+    if (u.context === "vendeur") {
+      visible = allOffers.filter(o => o.sellerId === u.id);
+    } else {
+      const favs = favIdsForBuyer(u.id);
+      if (mode === "favorites") visible = allOffers.filter(o => favs.has(o.id));
+      else visible = allOffers.filter(o => !favs.has(o.id)); // Offres acheteur = NON favorisées
+
+      // Filtre catégories côté acheteur (comportement inchangé)
+      if (catSet.size === 0) visible = [];
+      else visible = visible.filter(o => catSet.has(o.category));
+    }
+
+    if (!visible.length) return ``;
+
+    if (u.context === "acheteur") visible.sort((a,b) => (Number(a.distance)||0) - (Number(b.distance)||0));
+    else visible.sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+
+    return `
+      <div class="offers">
+        ${visible.map(o => `
+          <div class="offer" data-id="${escapeHtml(o.id)}" data-created="${escapeHtml(o.createdAt || "")}">
+            <div class="top">
+              ${u.context === "acheteur"
+                ? `<div style="margin-bottom:6px">Vendeur : <b><span class="sellerLink" data-seller-id="${escapeHtml(o.sellerId)}">${escapeHtml(o.sellerName || "-")}</span></b></div>`
+                : ``}
+
+              <div>
+                ${u.context === "acheteur"
+                  ? `<span class="pill">${escapeHtml(o.type)} : ${escapeHtml(o.value)}</span>`
+                  : `<span class="pill">${escapeHtml(o.type)}</span>
+                     <span class="pill">${escapeHtml(o.value)}</span>`
+                }
+                ${u.context === "vendeur"
+                  ? (o.quantity === "Illimité"
+                      ? ``
+                      : `
+                         <span class="pill">Restant: ${escapeHtml(Math.max(0, (Number(o.quantity) || 0) - countValidForOffer(o.id)))}/${escapeHtml(o.quantity ?? "-")}</span>`)
+                  : `<span class="pill">Restant: ${escapeHtml(Math.max(0, (Number(o.quantity) || 0) - countValidForOffer(o.id)))}/${escapeHtml(o.quantity ?? "-")}</span>`
+                }
+                ${u.context === "acheteur"
+  ? `
+     ${(() => {
+        const a = computeArea(u.id, o);
+        return a !== null ? `<span class="pill">Area: ${escapeHtml(a)}</span>` : ``;
+     })()}
+    `
+  : ``}
+                ${u.context === "acheteur"
+                  ? ``
+                  : ``}
+                <span class="pill">${escapeHtml(o.category)}</span>
+              </div>
+
+              ${u.context === "acheteur" ? `
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px">
+                  
+                ${(() => { const s = displayBuyerOfferStatus(o, u.id); return s ? `<span class="pill" data-status="${s}">${s}</span>` : ``; })()}
+                ${(() => { const s = displayBuyerOfferStatus(o, u.id); return s ? `<div class="statusBox"><span class="pill" data-status="${s}">${s}</span></div>` : ``; })()}
+                <svg class="ring" viewBox="0 0 100 100" data-exp="${escapeHtml(o.date || "")}">
+                    <circle class="bg" cx="50" cy="50" r="45"></circle>
+                    <circle class="fg" cx="50" cy="50" r="45"
+                      stroke-dasharray="${2 * Math.PI * 45}"
+                      stroke-dashoffset="${2 * Math.PI * 45 * (1 - expiryProgress(o.date, o.createdAt))}">
+                    </circle>
+                  </svg>
+                  <div class="countdown" data-exp="${escapeHtml(o.date || "")}">${remainingText(o.date)}</div>
+                </div>
+              ` : `
+                <div class="date">Expire : ${escapeHtml(o.date || "-")}</div>
+              `}
+            </div>
+
+            <div class="meta">
+              <div>
+                ${u.context === "vendeur"
+                  ? `⭐ Favori : <b>${countFavsForOffer(o.id)}</b> · 🟡 Réservé : <b>${countReservedBuyersForOffer(o)}</b> · ✅ Validé : <b>${countValidForOffer(o.id)}</b>`
+                  : `Vendeur : <b><span class="sellerLink" data-seller-id="${escapeHtml(o.sellerId)}">${escapeHtml(o.sellerName || "-")}</span></b> ${o.description ? `<div><button class="descBtn" data-id="${escapeHtml(o.id)}">Description</button></div>` : ``}`
+                }
+              </div>
+
+              ${u.context === "acheteur" ? `
+                <div style="display:flex; gap:8px; flex-wrap:wrap">
+                  <label class="toggleBox" title="Ajouter aux favoris">
+                    <input type="checkbox" class="favToggle" data-id="${escapeHtml(o.id)}" ${isFav(u.id, o.id) ? "checked" : ""}>
+                    <span>Favori</span>
+                  </label>
+                  
+                  
+                </div>
+              ` : ""}
+            </div>
+          
+              ${u.context === "acheteur" ? `
+                <div class="offerDesc" id="desc-${escapeHtml(o.id)}">
+                  ${escapeHtml(o.description || "Aucune description")}
+                </div>
+              ` : ``}
+            </div>
+        `).join("")}
+      </div>
+    `;
+
+  }
+
+  function wireToggles(u){
+    // Favori
+    document.querySelectorAll(".favToggle").forEach(cb => {
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", () => {
+        const id = cb.getAttribute("data-id");
+        const checked = cb.checked;
+
+        setFav(u.id, id, checked);
+        showToast(checked ? "Ajouté aux favoris ⭐" : "Retiré des favoris");
+
+        // Disparition temps réel selon l’onglet (comportement inchangé)
+        const tab = state[u.id]?.tab;
+        const card = cb.closest(".offer");
+        if (!card) return;
+
+        if (tab === "Offres" && checked) card.remove();
+        if (tab === "Favoris" && !checked) card.remove();
+      });
+    });
+
+    // Réserver
+    document.querySelectorAll(".resToggle").forEach(cb => {
+      cb.addEventListener("click", (e) => e.stopPropagation());
+      cb.addEventListener("change", () => {
+        const id = cb.getAttribute("data-id");
+        const checked = cb.checked;
+        setReserved(u.id, id, checked);
+        showToast(checked ? "Offre réservée 📌" : "Réservation annulée");
+      });
+    });
+
+    // Validation manuelle désactivée (scan vendeur uniquement)
+  }
+
+  // =========================
+  // Home render helpers
+  // =========================
+  function renderHome(u){
+    const p = state[u.id].profile;
+    const isVendeur = (u.context === "vendeur");
+
+    content.innerHTML = `
+      <div class="card">
+        
+
+        <div class="fields">
+          <div>
+            <label>Nom</label>
+            <input id="nom" value="${escapeHtml(p.nom || "")}">
+          </div>
+          <div>
+            <label>Adresse</label>
+            <input id="adr" value="${escapeHtml(p.adresse || "")}">
+          </div>
+        </div>
+
+        ${isVendeur ? `
+          <div>
+            <label>Spot</label>
+            <select id="home_vendeur_spot">
+              <option value="">-- choisir --</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+
+          <div style="margin-top:16px">
+            <div class="muted" style="margin-bottom:8px">Emplacement du vendeur</div>
+            <div id="map" style="height:320px;width:100%;border-radius:12px;overflow:hidden"></div>
+          </div>
+        ` : ``}
+
+        ${u.context === "acheteur" ? `
+          <div style="margin-top:16px">
+            <label>Emplacement</label>
+            <select id="emplacement">
+              <option value="">-- choisir --</option>
+              ${Array.from({length:5},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("")}
+            </select>
+          </div>
+
+          <div style="margin-top:16px">
+            <label>Points Flash</label>
+            <input id="pointsFlash" value="${state[u.id].pointsFlash ?? 0}" readonly>
+          </div>
+
+          <div style="margin-top:16px">
+            <div class="muted" style="margin-bottom:8px">Catégories</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              ${["Mode","Concert","Alimentation","Sport"].map(c=>`
+                <label class="toggleBox" style="cursor:pointer">
+                  <input type="checkbox" class="catToggle" value="${c}">
+                  <span>${c}</span>
+                </label>
+              `).join("")}
+            </div>
+          </div>
+        ` : ``}
+      </div>
+    `;
+
+    // Profil (inchangé)
+    document.getElementById("nom").addEventListener("input", e => {
+      state[u.id].profile.nom = e.target.value;
+      saveState();
+    });
+    document.getElementById("adr").addEventListener("input", e => {
+      state[u.id].profile.adresse = e.target.value;
+      saveState();
+    });
+
+    // Acheteur prefs (même logique que Nom/Adresse, mais séparé et fiable)
+    if (u.context === "acheteur") {
+      const prefs = state[u.id].buyerPrefs;
+
+      const emp = document.getElementById("emplacement");
+      if (emp) {
+        const saved = prefs.emplacement;
+        emp.value = (saved === undefined || saved === null) ? "" : String(saved);
+        emp.addEventListener("change", (e) => {
+          const v = e.target.value;
+          prefs.emplacement = (v === "" ? null : Number(v));
+          saveState();
+        });
+      }
+
+      document.querySelectorAll(".catToggle").forEach(cb => {
+        cb.checked = prefs.categories.includes(cb.value);
+        cb.addEventListener("change", () => {
+          const set = new Set(prefs.categories);
+          cb.checked ? set.add(cb.value) : set.delete(cb.value);
+          prefs.categories = Array.from(set);
+          saveState();
+        });
+      });
+    }
+
+    
+    // Champ SAFE : Spot vendeur
+    if (u.context === "vendeur") {
+      const spotEl = document.getElementById("home_vendeur_spot");
+      if (spotEl) {
+        spotEl.value = state[u.id].profile?.spot ?? "";
+        spotEl.addEventListener("change", e => {
+          state[u.id].profile.spot = e.target.value ? Number(e.target.value) : null;
+          saveState();
+        });
+      }
+    }
+
+// Carte vendeur (inchangé)
+    if (isVendeur && u.location) {
+      setTimeout(() => initVendorMap(u, p), 50);
+    }
+  }
+
+  function initVendorMap(u, p){
+    // Remove previous instance if any
+    if (window._leafletMap) {
+      window._leafletMap.remove();
+      window._leafletMap = null;
+    }
+    const map = L.map("map").setView([u.location.lat, u.location.lng], 13);
+    window._leafletMap = map;
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap"
+    }).addTo(map);
+
+    L.marker([u.location.lat, u.location.lng])
+      .addTo(map)
+      .bindPopup(`<b>${escapeHtml(p.nom)}</b><br>${escapeHtml(p.adresse)}`)
+      .openPopup();
+
+    setTimeout(() => map.invalidateSize(), 200);
+  }
+
+  // =========================
+  // Main render
+  // =========================
+  function render(u){
+    ensureUser(u);
+    renderTabs(u);
+
+    const tab = state[u.id].tab;
+
+    if (tab === "Home") {
+      renderHome(u);
+      return;
+    }
+
+    if (tab === "Publish") {
+      if (u.context !== "vendeur") {
+        content.innerHTML = `<div class="card"></div>`;
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="card">
+          
+          
+
+          <div class="fields">
+            <div>
+              <label>Type offre</label>
+              <select id="type">
+                <option value="">-- choisir --</option>
+                <option value="Remise">Remise</option>
+                <option value="Offre">Offre</option>
+              </select>
+            </div>
+            <div>
+              <label>Valeur</label>
+              <div id="valueContainer"></div>
+            </div>
+            <div>
+              <label>Quantité</label>
+              <div id="qtyContainer"></div>
+            </div>
+            
+            <div>
+              <label>Catégorie</label>
+              <select id="cat">
+                <option value="">-- choisir --</option>
+                ${["Mode","Concert","Alimentation","Sport"].map(c => `<option value="${c}">${c}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label>Date expiration</label>
+              <input type="datetime-local" id="date">
+            </div>
+          </div>
+
+          
+          <div style="grid-column:1 / -1">
+            <label>Description</label>
+            <textarea id="description" rows="3"
+              style="width:100%;border-radius:10px;background:var(--card);color:var(--text);
+              border:1px solid rgba(255,255,255,.15);padding:10px"></textarea>
+          </div>
+
+<div class="actions">
+            <button class="primary" id="pub">Publier</button>
+          </div>
+
+          <div id="msg" class="muted" style="margin-top:10px"></div>
+        </div>
+      `;
+
+      const msg = document.getElementById("msg");
+      
+      const typeEl = document.getElementById("type");
+      const valueContainer = document.getElementById("valueContainer");
+
+      function renderValueField(){
+        if (typeEl.value === "Offre") {
+          valueContainer.innerHTML = `
+            <div class="valueBlock">
+              <div class="field">
+                <input id="value" placeholder="Valeur">
+              </div>
+              <div class="valueRow">
+                <div class="field">
+                  <label>Minimum d’achat (€)</label>
+                  <input id="minBuy" type="number" min="0" step="1" placeholder="€">
+                </div>
+                <div class="field">
+                  <label>Maximum d’achat (€)</label>
+                  <input id="limit" type="number" min="0" step="1" placeholder="€">
+                </div>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        // Mode Remise
+        valueContainer.innerHTML = `
+          <div class="valueBlock">
+            <div class="field">
+              <select id="value">
+                <option value="">-- choisir --</option>
+                ${[10,20,30,40,50,60,70,80].map(v => `<option value="${v}%">${v}%</option>`).join("")}
+                <option value="__autre__">Autre</option>
+              </select>
+            </div>
+
+            <div class="valueRow">
+              <div class="field">
+                <label>Minimum d’achat (€)</label>
+                <input id="minBuy" type="number" min="0" step="1" placeholder="€">
+              </div>
+              <div class="field">
+                <label>Maximum d’achat (€)</label>
+                <input id="limit" type="number" min="0" step="1" placeholder="€">
+              </div>
+            </div>
+          </div>
+        `;
+
+        const valueEl = document.getElementById("value");
+        valueEl.addEventListener("change", () => {
+          if (valueEl.value === "__autre__") {
+            valueContainer.innerHTML = `
+              <div class="valueBlock">
+                <div class="field">
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <input
+                      id="value"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="Valeur"
+                      style="flex:1"
+                    >
+                    <span class="pill">%</span>
+                  </div>
+                </div>
+
+                <div class="valueRow">
+                  <div class="field">
+                    <label>Minimum d’achat (€)</label>
+                    <input id="minBuy" type="number" min="0" step="1" placeholder="€">
+                  </div>
+                  <div class="field">
+                    <label>Maximum d’achat (€)</label>
+                    <input id="limit" type="number" min="0" step="1" placeholder="€">
+                  </div>
+                </div>
+              </div>
+            `;
+          }
+        });
+      }
+
+      typeEl.addEventListener("change", renderValueField);
+      renderValueField();
+
+
+      const qtyContainer = document.getElementById("qtyContainer");
+
+      function renderQtyField(){
+        qtyContainer.innerHTML = `
+          <select id="qty">
+            ${Array.from({length:10},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("")}
+            <option value="__autre__">Autre</option>
+            <option value="__illimite__">Illimité</option>
+          </select>
+        `;
+
+        const qtyEl = document.getElementById("qty");
+        qtyEl.addEventListener("change", () => {
+          if (qtyEl.value === "__autre__") {
+            qtyContainer.innerHTML = `
+              <input
+                id="qty"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Quantité"
+              >
+            `;
+          }
+        });
+      }
+
+      renderQtyField();
+
+document.getElementById("pub").addEventListener("click", () => {
+        const type = document.getElementById("type").value;
+        let value = document.getElementById("value").value;
+        if (type === "Remise" && value && !String(value).includes("%")) {
+          value = value + "%";
+        }
+        let qty = document.getElementById("qty").value;
+
+        // Illimité accepté comme valeur métier
+        if (qty === "__illimite__") {
+          qty = "Illimité";
+        }
+
+        // Validation numérique uniquement si ce n’est pas Illimité
+        if (qty !== "Illimité") {
+          if (isNaN(qty) || Number(qty) <= 0) {
+            return msg.textContent = "⚠️ Quantité invalide";
+          }
+          qty = Number(qty);
+        }
+        // Distance issue du Spot vendeur (Home)
+        const distance = state[u.id].profile?.spot ?? document.getElementById("distance").value;
+        const cat = document.getElementById("cat").value;
+        const date = document.getElementById("date").value;
+        const description = document.getElementById("description")?.value || "";
+
+        if (!type) return msg.textContent = "⚠️ Choisir un type";
+        if (!value) return msg.textContent = "⚠️ Choisir une valeur";
+        if (!qty || qty <= 0) return msg.textContent = "⚠️ Choisir une quantité valide";
+        if (!distance) return msg.textContent = "⚠️ Définir un Spot dans le Home vendeur";
+        if (!cat) return msg.textContent = "⚠️ Choisir une catégorie";
+        if (!date) return msg.textContent = "⚠️ Choisir une date d’expiration";
+
+        const offers = loadOffers();
+        offers.push({
+          id: nextOfferId(),
+          sellerId: u.id,
+          sellerName: state[u.id].profile?.nom || u.profile.nom || u.label,
+          type,
+          value,
+          quantity: Number(qty),
+          distance: Number(distance),
+          category: cat,
+          date,
+          createdAt: Date.now(),
+          description
+        });
+        saveOffers(offers);
+
+        state[u.id].tab = "Offres";
+        saveState();
+        showToast("Offre publiée ✅");
+        render(u);
+      });
+
+      return;
+    }
+
+    if (tab === "Offres") {
+      content.innerHTML = `
+        <div class="card">
+          
+          
+          ${renderOffers(u, "all")}
+        </div>
+      `;
+      if (u.context === "acheteur") wireToggles(u);
+      return;
+    }
+
+    if (tab === "Favoris") {
+      if (u.context !== "acheteur") {
+        content.innerHTML = `<div class="card"></div>`;
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="card">
+          
+          
+          ${renderOffers(u, "favorites")}
+        </div>
+      `;
+      wireToggles(u);
+      return;
+    }
+
+
+    if (tab === "Scan") {
+      if (u.context !== "vendeur") {
+        content.innerHTML = `<div class="card"></div>`;
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="card">
+          <div style="margin-bottom:16px">
+            <label>Code</label>
+            <input id="scanInput" placeholder="Saisie libre">
+          </div>
+
+          <div class="actions">
+            <button id="scanValidate" class="primary">Valider</button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("scanValidate").addEventListener("click", () => {
+        const buyerId = document.getElementById("scanInput").value.trim();
+        if (!buyerId) return showToast("⚠️ Champ requis");
+
+        const buyer = getUser(buyerId);
+        if (!buyer || buyer.context !== "acheteur") return showToast("⚠️ Acheteur introuvable");
+
+        const emp = state[buyerId]?.buyerPrefs?.emplacement ?? null;
+        const offers = loadOffers().filter(o => o.sellerId === u.id);
+
+        let nValidated = 0;
+        for (const o of offers) {
+          const auto = statut_offre_acheteur(emp, o.distance);
+          if (auto === "Réservé") {
+            setTxStatus(o.id, buyerId, "Validé");
+            nValidated += 1;
+          }
+        }
+
+        if (nValidated === 0) {
+          showToast("Aucune offre réservée pour cet acheteur");
+        } else {
+          state[buyerId].pointsFlash = (state[buyerId].pointsFlash || 0) + nValidated;
+          saveState();
+          showToast(`Transaction validée ✅ (+${nValidated} Point${nValidated > 1 ? "s" : ""})`);
+        }
+      });
+      return;
+    }
+
+    // fallback
+    content.innerHTML = `<div class="card"></div>`;
+  }
+
+  
+  // Toggle offer description (buyer)
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".descBtn");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const desc = document.getElementById("desc-" + id);
+    if (!desc) return;
+    desc.classList.toggle("open");
+  });
+
+
+  // =========================
+  // Countdown rings update
+  // =========================
+  function updateRings(){
+    document.querySelectorAll('.ring').forEach(svg=>{
+      const exp = svg.getAttribute('data-exp');
+      const offerEl = svg.closest('.offer');
+      const createdAt = offerEl ? Number(offerEl.getAttribute('data-created')) : null;
+
+      const p = expiryProgress(exp, createdAt);
+      const r = 45;
+      const c = 2 * Math.PI * r;
+      const fg = svg.querySelector('.fg');
+      if (fg) fg.style.strokeDashoffset = c * (1 - p);
+    });
+
+    document.querySelectorAll('.countdown').forEach(el=>{
+      const exp = el.getAttribute('data-exp');
+      el.textContent = remainingText(exp);
+    });
+  }
+
+  // =========================
+  // Boot
+  // =========================
+  userSelect.innerHTML = USERS.map(u => `<option value="${u.id}">${u.label}</option>`).join("");
+
+  userSelect.addEventListener("change", () => render(getUser(userSelect.value)));
+  userSelect.value = USERS[0].id;
+
+  render(getUser(userSelect.value));
+  updateRings();
+  setInterval(updateRings, 1000);
+
+  // --- Seller modal (buyer offer -> click seller name) ---
+  function sellerDisplayName(sellerId){
+    const u = getUser(sellerId);
+    const p = state?.[sellerId]?.profile || u?.profile || {};
+    return p.nom || u?.label || sellerId || "-";
+  }
+  function sellerAddress(sellerId){
+    const u = getUser(sellerId);
+    const p = state?.[sellerId]?.profile || u?.profile || {};
+    return p.adresse || p.address || "-";
+  }
+  function openSellerModal(sellerId){
+    const overlay = document.getElementById("sellerModal");
+    const body = document.getElementById("sellerModalBody");
+    if (!overlay || !body) return;
+    body.innerHTML = `
+      <div style="margin-bottom:8px">Nom : <b>${escapeHtml(sellerDisplayName(sellerId))}</b></div>
+      <div>Adresse : <b>${escapeHtml(sellerAddress(sellerId))}</b></div>
+    
+      <div style="margin-top:12px">
+        <iframe
+          width="100%"
+          height="220"
+          style="border:0; border-radius:12px"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          src="https://www.google.com/maps?q=${encodeURIComponent(sellerAddress(sellerId))}&output=embed">
+        </iframe>
+      </div>
+`;
+    overlay.style.display = "flex";
+  }
+  function closeSellerModal(){
+    const overlay = document.getElementById("sellerModal");
+    if (overlay) overlay.style.display = "none";
+  }
+
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest(".sellerLink");
+    if (link) {
+      e.preventDefault();
+      e.stopPropagation();
+      const sellerId = link.dataset.sellerId;
+      if (sellerId) openSellerModal(sellerId);
+      return;
+    }
+    if (e.target && (e.target.id === "sellerModal")) closeSellerModal();
+  });
+
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "sellerModalClose") closeSellerModal();
+  });
+
+</script>
+
+  <div id="sellerModal" class="modalOverlay" style="display:none">
+    <div class="modalCard card">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px">
+        <div style="font-weight:800">Vendeur</div>
+        <button id="sellerModalClose" class="ghostBtn" aria-label="Fermer">✕</button>
+      </div>
+      <div id="sellerModalBody" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+</body>
+</html>
