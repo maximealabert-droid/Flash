@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Simulation multi-utilisateurs — V2 (optimisée)</title>
+  <title>index_publish_clean_no_spot_stable.html</title>
   <style>
     :root{
       /* Premium Light theme */
@@ -526,7 +526,7 @@ label[for="emplacement"] {
 <body>
 
 <div style="font-size:11px;color:#888;padding:6px 10px;">
-  index_publish_simple_reset.html
+  index_publish_clean_no_spot_stable.html
 </div>
 
 
@@ -1342,8 +1342,6 @@ document.getElementById("pub").addEventListener("click", () => {
           }
           qty = Number(qty);
         }
-        // Distance issue du Spot vendeur (Home)
-        const distance = state[u.id].profile?.spot ?? document.getElementById("distance").value;
         const cat = document.getElementById("cat").value;
         const date = document.getElementById("date").value;
         const description = document.getElementById("description")?.value || "";
@@ -1351,7 +1349,6 @@ document.getElementById("pub").addEventListener("click", () => {
         if (!type) return msg.textContent = "⚠️ Choisir un type";
         if (!value) return msg.textContent = "⚠️ Choisir une valeur";
         if (!qty || qty <= 0) return msg.textContent = "⚠️ Choisir une quantité valide";
-        if (!distance) return msg.textContent = "⚠️ Définir un Spot dans le Home vendeur";
         if (!cat) return msg.textContent = "⚠️ Choisir une catégorie";
         if (!date) return msg.textContent = "⚠️ Choisir une date d’expiration";
 
@@ -1363,7 +1360,6 @@ document.getElementById("pub").addEventListener("click", () => {
           type,
           value,
           quantity: Number(qty),
-          distance: Number(distance),
           category: cat,
           date,
           createdAt: Date.now(),
