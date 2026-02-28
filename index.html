@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>index_clean_no_spot_map_vendeur_only_safe.html</title>
+  <title>index_scan_validation_points_protected.html</title>
   <style>
     :root{
       /* Premium Light theme */
@@ -542,7 +542,7 @@ label[for="emplacement"] {
 </head>
 <body>
 
-<div style="font-size:11px;color:#888;padding:6px 10px;">index_clean_no_spot_map_vendeur_only_safe.html</div>
+<div style="font-size:11px;color:#888;padding:6px 10px;">index_scan_validation_points_protected.html</div>
 
 
 <header>
@@ -1028,7 +1028,24 @@ ${u.context === "acheteur" ? `
           </div>
         </div>
 
-        ${isVendeur ? `` : ``}
+        ${isVendeur ? `
+          <div>
+            <label>Spot</label>
+            <select id="home_vendeur_spot">
+              <option value="">-- choisir --</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+
+          <div style="margin-top:16px">
+            <div class="muted" style="margin-bottom:8px">Emplacement du vendeur</div>
+            <div id="map" style="height:320px;width:100%;border-radius:12px;overflow:hidden"></div>
+          </div>
+        ` : ``}
 
         ${u.context === "acheteur" ? `
           <div style="margin-top:16px">
@@ -1108,9 +1125,18 @@ ${u.context === "acheteur" ? `
       }
     }
 
-// Carte vendeur (inchangé)  }
+// Carte vendeur (inchangé)
+    if (isVendeur && u.location) {
+      setTimeout(() => initVendorMap(u, p), 50);
+    }
+  }
 
-  
+  function initVendorMap(u, p){
+    // Remove previous instance if any
+    if (window._leafletMap) {
+      window._leafletMap.remove();
+      window._leafletMap = null;
+    }
     const map = L.map("map").setView([u.location.lat, u.location.lng], 13);
     window._leafletMap = map;
 
@@ -1779,11 +1805,10 @@ async function startScanner(){
   try {
     codeReader.decodeFromVideoDevice(null, videoElement, (result, err) => {
       
+
 if (result) {
 
         const buyerId = result.text.trim();
-        
-
         const vendeur = getUser(userSelect.value);
         const offers = loadOffers();
 
@@ -1791,11 +1816,20 @@ if (result) {
 
         for (const o of offers) {
 
+          const currentStatus = getTxStatus(o.id, buyerId);
+
           if (
             o.sellerId === vendeur.id &&
-            geoStatusForBuyerOffer(o, buyerId) === "Réservé"
+            geoStatusForBuyerOffer(o, buyerId) === "Réservé" &&
+            currentStatus !== "Validé"
           ) {
+
             setTxStatus(o.id, buyerId, "Validé");
+
+            // 🔥 +1 Point Flash (only if not already validated)
+            state[buyerId].pointsFlash = (state[buyerId].pointsFlash || 0) + 1;
+            saveState();
+
             validated = true;
             break;
           }
@@ -1803,15 +1837,15 @@ if (result) {
         }
 
         if (validated) {
-          alert("✅ Offre validée pour " + buyerId);
+          alert("✅ Offre validée +1 Point Flash");
         } else {
-          alert("⚠️ Aucune offre Réservée trouvée pour " + buyerId);
+          alert("⚠️ Aucune offre Réservée trouvée ou déjà validée");
         }
 
         stopScanner();
-        
         render(getUser(userSelect.value));
       }
+
 
     });
   } catch (err) {
