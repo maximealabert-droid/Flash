@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>index_buyer_geo_safe_render_hook.html</title>
+  <title>index_buyer_geo_safe_render_hook_scan_manual_v2.html</title>
   <style>
     :root{
       /* Premium Light theme */
@@ -522,10 +522,11 @@ label[for="emplacement"] {
 }
 </style>
 
+<script src="https://unpkg.com/@zxing/library@latest"></script>
 </head>
 <body>
 
-<div style="font-size:11px;color:#888;padding:6px 10px;">index_buyer_geo_safe_render_hook.html</div>
+<div style="font-size:11px;color:#888;padding:6px 10px;">index_buyer_geo_safe_render_hook_scan_manual_v2.html</div>
 
 
 <header>
@@ -1404,54 +1405,36 @@ document.getElementById("pub").addEventListener("click", () => {
     }
 
 
-    if (tab === "Scan") {
-      if (u.context !== "vendeur") {
-        content.innerHTML = `<div class="card"></div>`;
-        return;
-      }
+    
+if (tab === "Scan") {
 
-      content.innerHTML = `
-        <div class="card">
-          <div style="margin-bottom:16px">
-            <label>Code</label>
-            <input id="scanInput" placeholder="Saisie libre">
-          </div>
+  if (u.context !== "vendeur") {
+    content.innerHTML = `<div class="card"></div>`;
+    return;
+  }
 
-          <div class="actions">
-            <button id="scanValidate" class="primary">Valider</button>
-          </div>
-        </div>
-      `;
+  content.innerHTML = `
+    <div class="card" style="text-align:center">
+      <h2>📷 Scanner QR</h2>
 
-      document.getElementById("scanValidate").addEventListener("click", () => {
-        const buyerId = document.getElementById("scanInput").value.trim();
-        if (!buyerId) return showToast("⚠️ Champ requis");
+      <video id="video" muted playsinline 
+        style="width:100%;max-width:350px;border-radius:12px"></video>
 
-        const buyer = getUser(buyerId);
-        if (!buyer || buyer.context !== "acheteur") return showToast("⚠️ Acheteur introuvable");
+      <br><br>
 
-        const emp = state[buyerId]?.buyerPrefs?.emplacement ?? null;
-        const offers = loadOffers().filter(o => o.sellerId === u.id);
+      <button id="startScan" class="primary">Démarrer Scan</button>
+      <button id="stopScan" class="primary" style="background:#64748b;margin-left:8px">Stop</button>
+      <button id="clearHistory" class="primary" style="background:#334155;margin-left:8px">Effacer historique</button>
 
-        let nValidated = 0;
-        for (const o of offers) {
-          const auto = statut_offre_acheteur(emp, o.distance);
-          if (auto === "Réservé") {
-            setTxStatus(o.id, buyerId, "Validé");
-            nValidated += 1;
-          }
-        }
+      <h3 style="margin-top:20px">Historique</h3>
+      <ul id="history" style="list-style:none;padding:0;max-width:400px;margin:20px auto;text-align:left"></ul>
+    </div>
+  `;
 
-        if (nValidated === 0) {
-          showToast("Aucune offre réservée pour cet acheteur");
-        } else {
-          state[buyerId].pointsFlash = (state[buyerId].pointsFlash || 0) + nValidated;
-          saveState();
-          showToast(`Transaction validée ✅ (+${nValidated} Point${nValidated > 1 ? "s" : ""})`);
-        }
-      });
-      return;
-    }
+  initQrScanner();
+  return;
+}
+
 
     // fallback
     content.innerHTML = `<div class="card"></div>`;
@@ -1764,6 +1747,74 @@ render = function(){
   _render_original.apply(this, arguments);
   setTimeout(enhanceBuyerHome, 0);
 };
+</script>
+
+
+<script>
+let codeReader;
+let videoElement;
+
+function initQrScanner(){
+  videoElement = document.getElementById('video');
+  loadHistory();
+
+  document.getElementById("startScan").onclick = startScanner;
+  document.getElementById("stopScan").onclick = stopScanner;
+  document.getElementById("clearHistory").onclick = clearHistory;
+}
+
+async function startScanner(){
+  codeReader = new ZXing.BrowserQRCodeReader();
+  try {
+    codeReader.decodeFromVideoDevice(null, videoElement, (result, err) => {
+      if (result) {
+        const value = result.text;
+        saveToHistory(value);
+        alert("QR détecté : " + value);
+        stopScanner();
+        loadHistory();
+      }
+    });
+  } catch (err) {
+    alert("Erreur caméra : " + err);
+  }
+}
+
+function stopScanner(){
+  if (codeReader) codeReader.reset();
+}
+
+function saveToHistory(data){
+  let history = JSON.parse(localStorage.getItem("qrHistory")) || [];
+  history.push({
+    value: data,
+    date: new Date().toLocaleString()
+  });
+  localStorage.setItem("qrHistory", JSON.stringify(history));
+}
+
+function loadHistory(){
+  let history = JSON.parse(localStorage.getItem("qrHistory")) || [];
+  const historyList = document.getElementById("history");
+  if (!historyList) return;
+  historyList.innerHTML = "";
+  history.slice().reverse().forEach(item => {
+    let li = document.createElement("li");
+    li.style.background="white";
+    li.style.padding="8px";
+    li.style.marginBottom="6px";
+    li.style.borderRadius="4px";
+    li.style.fontSize="14px";
+    li.style.wordBreak="break-all";
+    li.textContent = item.date + " - " + item.value;
+    historyList.appendChild(li);
+  });
+}
+
+function clearHistory(){
+  localStorage.removeItem("qrHistory");
+  loadHistory();
+}
 </script>
 
 </body>
