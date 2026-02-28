@@ -921,7 +921,14 @@ label[for="emplacement"] {
   // =========================
   // Home render helpers
   // =========================
-  function renderHome(u){
+  
+function renderHome(u){
+
+  const geoData = JSON.parse(localStorage.getItem("geo.byUser.v1") || "{}");
+  const geo = geoData[u.id] || null;
+  const latDisplay = geo ? Number(geo.lat).toFixed(6) : "-";
+  const lngDisplay = geo ? Number(geo.lng).toFixed(6) : "-";
+
     const p = state[u.id].profile;
     const isVendeur = (u.context === "vendeur");
 
@@ -943,7 +950,7 @@ ${u.context === "vendeur" ? `
   🗺️ Géocoder l’adresse
 </button>
 <div id="geoVendorCoords" style="font-size:12px;margin-top:6px;">
-  Lat: - | Lng: -
+  Lat: ${latDisplay} | Lng: ${lngDisplay}
 </div>
 ` : ``}
 
@@ -952,7 +959,7 @@ ${u.context === "acheteur" ? `
   📍 Utiliser ma position
 </button>
 <div id="geoBuyerCoords" style="font-size:12px;margin-top:6px;">
-  Lat: - | Lng: -
+  Lat: ${latDisplay} | Lng: ${lngDisplay}
 </div>
 ` : ``}
 
