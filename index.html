@@ -1316,13 +1316,14 @@ document.getElementById("pub").addEventListener("click", () => {
 
         const offers = loadOffers();
         offers.push({
+      location: { lat: geo.lat, lng: geo.lng },
           id: nextOfferId(),
           sellerId: u.id,
           sellerName: state[u.id].profile?.nom || u.profile.nom || u.label,
           type,
           value,
           quantity: Number(qty),
-          distance: Number(distance),
+          
           category: cat,
           date,
           createdAt: Date.now(),
