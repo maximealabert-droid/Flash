@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>index_publish_clean_no_spot_stable.html</title>
+  <title>index_buyer_geo_safe_render_hook.html</title>
   <style>
     :root{
       /* Premium Light theme */
@@ -525,9 +525,7 @@ label[for="emplacement"] {
 </head>
 <body>
 
-<div style="font-size:11px;color:#888;padding:6px 10px;">
-  index_publish_clean_no_spot_stable.html
-</div>
+<div style="font-size:11px;color:#888;padding:6px 10px;">index_buyer_geo_safe_render_hook.html</div>
 
 
 <header>
@@ -1692,6 +1690,80 @@ document.addEventListener("click", async (e)=>{
   }
 
 });
+</script>
+
+
+<script>
+// ===== BUYER GEO SAFE (NON-DESTRUCTIVE) =====
+
+const GEO_KEY = "geo.buyer.v1";
+
+function saveBuyerGeo(lat, lng){
+  localStorage.setItem(GEO_KEY, JSON.stringify({
+    lat: Number(lat),
+    lng: Number(lng),
+    ts: Date.now()
+  }));
+}
+
+function loadBuyerGeo(){
+  try {
+    return JSON.parse(localStorage.getItem(GEO_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function getBuyerPosition(){
+  if(!navigator.geolocation){
+    alert("Géolocalisation non supportée");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(pos=>{
+    saveBuyerGeo(pos.coords.latitude, pos.coords.longitude);
+    render(getUser(userSelect.value));
+  });
+}
+
+function enhanceBuyerHome(){
+  const u = getUser(userSelect.value);
+  if(!u || u.context !== "acheteur") return;
+
+  const adrInput = document.getElementById("adr");
+  if(!adrInput) return;
+
+  if(document.getElementById("buyerGeoBlock")) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.id = "buyerGeoBlock";
+  wrapper.style.marginTop = "10px";
+
+  const btn = document.createElement("button");
+  btn.textContent = "📍 Utiliser ma position";
+  btn.onclick = getBuyerPosition;
+
+  const display = document.createElement("div");
+  display.style.fontSize = "12px";
+  display.style.marginTop = "6px";
+
+  const geo = loadBuyerGeo();
+  display.textContent = geo
+    ? "Lat: " + geo.lat.toFixed(6) + " | Lng: " + geo.lng.toFixed(6)
+    : "Lat: - | Lng: -";
+
+  wrapper.appendChild(btn);
+  wrapper.appendChild(display);
+
+  adrInput.parentNode.insertBefore(wrapper, adrInput.nextSibling);
+}
+
+// Hook after render (safe wrap)
+const _render_original = render;
+render = function(){
+  _render_original.apply(this, arguments);
+  setTimeout(enhanceBuyerHome, 0);
+};
 </script>
 
 </body>
