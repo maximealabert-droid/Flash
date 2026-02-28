@@ -471,6 +471,21 @@ main{
 }
 </style>
 
+
+<style>
+/* SAFE MASK Spot & Emplacement */
+#home_vendeur_spot,
+#emplacement {
+  display: none !important;
+}
+
+/* Hide associated labels safely */
+label[for="home_vendeur_spot"],
+label[for="emplacement"] {
+  display: none !important;
+}
+</style>
+
 </head>
 <body>
 
@@ -922,6 +937,25 @@ main{
           <div>
             <label>Adresse</label>
             <input id="adr" value="${escapeHtml(p.adresse || "")}">
+
+${u.context === "vendeur" ? `
+<button id="geoVendorBtn" class="primary" style="margin-top:10px;">
+  🗺️ Géocoder l’adresse
+</button>
+<div id="geoVendorCoords" style="font-size:12px;margin-top:6px;">
+  Lat: - | Lng: -
+</div>
+` : ``}
+
+${u.context === "acheteur" ? `
+<button id="geoBuyerBtn" class="primary" style="margin-top:10px;">
+  📍 Utiliser ma position
+</button>
+<div id="geoBuyerCoords" style="font-size:12px;margin-top:6px;">
+  Lat: - | Lng: -
+</div>
+` : ``}
+
           </div>
         </div>
 
@@ -1576,5 +1610,45 @@ document.addEventListener("DOMContentLoaded", ()=>{
       <div id="sellerModalBody" style="margin-top:10px"></div>
     </div>
   </div>
+
+<script>
+const GEO_KEY="geo.byUser.v1";
+
+function loadGeo(){ return JSON.parse(localStorage.getItem(GEO_KEY)||"{}"); }
+function saveGeo(g){ localStorage.setItem(GEO_KEY,JSON.stringify(g)); }
+function setGeo(id,lat,lng){
+  const g=loadGeo();
+  g[id]={lat:Number(lat),lng:Number(lng)};
+  saveGeo(g);
+}
+
+document.addEventListener("click", async (e)=>{
+
+  if(e.target.id==="geoVendorBtn"){
+    const uId=userSelect.value;
+    const adr=document.getElementById("adr").value;
+    if(!adr) return alert("Adresse vide");
+    const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(adr));
+    const j=await r.json();
+    if(j[0]){
+      setGeo(uId,j[0].lat,j[0].lon);
+      document.getElementById("geoVendorCoords").textContent=
+        "Lat: "+Number(j[0].lat).toFixed(6)+" | Lng: "+Number(j[0].lon).toFixed(6);
+    } else alert("Adresse introuvable");
+  }
+
+  if(e.target.id==="geoBuyerBtn"){
+    const uId=userSelect.value;
+    if(!navigator.geolocation) return alert("Non supporté");
+    navigator.geolocation.getCurrentPosition(pos=>{
+      setGeo(uId,pos.coords.latitude,pos.coords.longitude);
+      document.getElementById("geoBuyerCoords").textContent=
+        "Lat: "+pos.coords.latitude.toFixed(6)+" | Lng: "+pos.coords.longitude.toFixed(6);
+    });
+  }
+
+});
+</script>
+
 </body>
 </html>
