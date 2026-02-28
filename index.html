@@ -365,6 +365,76 @@ document.addEventListener("DOMContentLoaded", ()=>{
 });
 
 
+
+const offers = JSON.parse(localStorage.getItem("offers") || "[]");
+
+  const newOffer = {
+    id: Date.now().toString(),
+    sellerId: uId,
+    type,
+    value,
+    quantity: qty,
+    date,
+    createdAt: Date.now()
+  };
+
+  offers.push(newOffer);
+
+  localStorage.setItem("offers", JSON.stringify(offers));
+
+  alert("Offre publiée ✅");
+
+  if (typeof render === "function") render();
+}
+
+
+function publish() {
+
+  const uId = userSelect.value;
+
+  const geoData = JSON.parse(localStorage.getItem("geo.byUser.v1") || "{}");
+  const geo = geoData[uId];
+
+  if (!geo) {
+    alert("Veuillez géocoder votre adresse avant de publier.");
+    return;
+  }
+
+  const type = document.getElementById("type")?.value || "";
+  const value = document.getElementById("value")?.value || "";
+  const qty   = document.getElementById("quantity")?.value || "";
+  const date  = document.getElementById("date")?.value || "";
+
+  if (!type || !value || !qty) {
+    alert("Veuillez remplir tous les champs.");
+    return;
+  }
+
+  const offers = JSON.parse(localStorage.getItem("offers") || "[]");
+
+  const newOffer = {
+    id: Date.now().toString(),
+    sellerId: uId,
+    type,
+    value,
+    quantity: qty,
+    date,
+    location: {
+      lat: geo.lat,
+      lng: geo.lng
+    },
+    createdAt: Date.now()
+  };
+
+  offers.push(newOffer);
+
+  localStorage.setItem("offers", JSON.stringify(offers));
+
+  alert("Offre publiée ✅");
+
+  if (typeof render === "function") render();
+}
+
 </script>
 
 <style>
@@ -490,7 +560,7 @@ label[for="emplacement"] {
 <body>
 
 <div style="font-size:11px;color:#888;padding:6px 10px;">
-  index_publish_geo_clean_v2_named.html
+  index_publish_with_geo_location_show_latlng_clean.html
 </div>
 
 
@@ -870,9 +940,8 @@ label[for="emplacement"] {
                     <input type="checkbox" class="favToggle" data-id="${escapeHtml(o.id)}" ${isFav(u.id, o.id) ? "checked" : ""}>
                     <span>Favori</span>
                   </label>
-                  
-                  
-                </div>
+
+</div>
               ` : ""}
             </div>
           
@@ -1321,14 +1390,13 @@ document.getElementById("pub").addEventListener("click", () => {
 
         const offers = loadOffers();
         offers.push({
-      location: { lat: geo.lat, lng: geo.lng },
           id: nextOfferId(),
           sellerId: u.id,
           sellerName: state[u.id].profile?.nom || u.profile.nom || u.label,
           type,
           value,
           quantity: Number(qty),
-          
+          distance: Number(distance),
           category: cat,
           date,
           createdAt: Date.now(),
