@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>index_scan_validation_auto_v2.html</title>
+  <title>index_scan_auto_start_camera.html</title>
   <style>
     :root{
       /* Premium Light theme */
@@ -542,7 +542,7 @@ label[for="emplacement"] {
 </head>
 <body>
 
-<div style="font-size:11px;color:#888;padding:6px 10px;">index_scan_validation_auto_v2.html</div>
+<div style="font-size:11px;color:#888;padding:6px 10px;">index_scan_auto_start_camera.html</div>
 
 
 <header>
@@ -1446,15 +1446,24 @@ if (tab === "Scan") {
 
       <button id="startScan" class="primary">Démarrer Scan</button>
       <button id="stopScan" class="primary" style="background:#64748b;margin-left:8px">Stop</button>
-      <button id="clearHistory" class="primary" style="background:#334155;margin-left:8px">Effacer historique</button>
+      
 
-      <h3 style="margin-top:20px">Historique</h3>
-      <ul id="history" style="list-style:none;padding:0;max-width:400px;margin:20px auto;text-align:left"></ul>
+      
     </div>
   `;
 
-  initQrScanner();
-  return;
+  
+initQrScanner();
+
+// 🔥 Auto start camera immediately
+setTimeout(() => {
+  if (typeof startScanner === "function") {
+    startScanner();
+  }
+}, 300);
+
+return;
+
 }
 
 
@@ -1794,11 +1803,11 @@ let videoElement;
 
 function initQrScanner(){
   videoElement = document.getElementById('video');
-  loadHistory();
+  
 
   document.getElementById("startScan").onclick = startScanner;
   document.getElementById("stopScan").onclick = stopScanner;
-  document.getElementById("clearHistory").onclick = clearHistory;
+  
 }
 
 async function startScanner(){
@@ -1806,11 +1815,10 @@ async function startScanner(){
   try {
     codeReader.decodeFromVideoDevice(null, videoElement, (result, err) => {
       
+
 if (result) {
 
         const buyerId = result.text.trim();
-        saveToHistory(buyerId);
-
         const vendeur = getUser(userSelect.value);
         const offers = loadOffers();
 
@@ -1818,11 +1826,20 @@ if (result) {
 
         for (const o of offers) {
 
+          const currentStatus = getTxStatus(o.id, buyerId);
+
           if (
             o.sellerId === vendeur.id &&
-            geoStatusForBuyerOffer(o, buyerId) === "Réservé"
+            geoStatusForBuyerOffer(o, buyerId) === "Réservé" &&
+            currentStatus !== "Validé"
           ) {
+
             setTxStatus(o.id, buyerId, "Validé");
+
+            // 🔥 +1 Point Flash (only if not already validated)
+            state[buyerId].pointsFlash = (state[buyerId].pointsFlash || 0) + 1;
+            saveState();
+
             validated = true;
             break;
           }
@@ -1830,15 +1847,15 @@ if (result) {
         }
 
         if (validated) {
-          alert("✅ Offre validée pour " + buyerId);
+          showToast("✅ Offre validée • +1 Point Flash");
         } else {
-          alert("⚠️ Aucune offre Réservée trouvée pour " + buyerId);
+          showToast("⚠️ Aucune offre Réservée ou déjà validée");
         }
 
         stopScanner();
-        loadHistory();
         render(getUser(userSelect.value));
       }
+
 
     });
   } catch (err) {
@@ -1850,37 +1867,8 @@ function stopScanner(){
   if (codeReader) codeReader.reset();
 }
 
-function saveToHistory(data){
-  let history = JSON.parse(localStorage.getItem("qrHistory")) || [];
-  history.push({
-    value: data,
-    date: new Date().toLocaleString()
-  });
-  localStorage.setItem("qrHistory", JSON.stringify(history));
-}
 
-function loadHistory(){
-  let history = JSON.parse(localStorage.getItem("qrHistory")) || [];
-  const historyList = document.getElementById("history");
-  if (!historyList) return;
-  historyList.innerHTML = "";
-  history.slice().reverse().forEach(item => {
-    let li = document.createElement("li");
-    li.style.background="white";
-    li.style.padding="8px";
-    li.style.marginBottom="6px";
-    li.style.borderRadius="4px";
-    li.style.fontSize="14px";
-    li.style.wordBreak="break-all";
-    li.textContent = item.date + " - " + item.value;
-    historyList.appendChild(li);
-  });
-}
 
-function clearHistory(){
-  localStorage.removeItem("qrHistory");
-  loadHistory();
-}
 </script>
 
 </body>
