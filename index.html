@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>index_buyer_geo_safe_render_hook_scan_manual_v4_geo_fix.html</title>
+  <title>index_scan_validation_auto_v2.html</title>
   <style>
     :root{
       /* Premium Light theme */
@@ -542,7 +542,7 @@ label[for="emplacement"] {
 </head>
 <body>
 
-<div style="font-size:11px;color:#888;padding:6px 10px;">index_buyer_geo_safe_render_hook_scan_manual_v4_geo_fix.html</div>
+<div style="font-size:11px;color:#888;padding:6px 10px;">index_scan_validation_auto_v2.html</div>
 
 
 <header>
@@ -1805,13 +1805,41 @@ async function startScanner(){
   codeReader = new ZXing.BrowserQRCodeReader();
   try {
     codeReader.decodeFromVideoDevice(null, videoElement, (result, err) => {
-      if (result) {
-        const value = result.text;
-        saveToHistory(value);
-        alert("QR détecté : " + value);
+      
+if (result) {
+
+        const buyerId = result.text.trim();
+        saveToHistory(buyerId);
+
+        const vendeur = getUser(userSelect.value);
+        const offers = loadOffers();
+
+        let validated = false;
+
+        for (const o of offers) {
+
+          if (
+            o.sellerId === vendeur.id &&
+            geoStatusForBuyerOffer(o, buyerId) === "Réservé"
+          ) {
+            setTxStatus(o.id, buyerId, "Validé");
+            validated = true;
+            break;
+          }
+
+        }
+
+        if (validated) {
+          alert("✅ Offre validée pour " + buyerId);
+        } else {
+          alert("⚠️ Aucune offre Réservée trouvée pour " + buyerId);
+        }
+
         stopScanner();
         loadHistory();
+        render(getUser(userSelect.value));
       }
+
     });
   } catch (err) {
     alert("Erreur caméra : " + err);
