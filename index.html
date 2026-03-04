@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>index_V7_qr_scanner_square_autostop_v3.html</title>
+  <title>index_v14_click_seller_thumbnail.html</title>
   <style>
     :root{
       /* Premium Light theme */
@@ -323,7 +323,7 @@
     if (!overlay || !body) return;
     body.innerHTML = `
       <div style="margin-bottom:8px">Nom : <b>${escapeHtml(sellerDisplayName(sellerId))}</b></div>
-      <div>Adresse : <b>${escapeHtml(sellerAddress(sellerId))}</b></div>
+      
     
       <div style="margin-top:12px">
         <iframe
@@ -621,10 +621,27 @@ label[for="emplacement"] {
 </head>
 <body>
 
-<div style="font-size:11px;color:#888;padding:6px 10px;">index_V7_qr_scanner_square_autostop_v3.html</div>
+<div id="fileTitleBanner" style="
+background:#f1f5f9;
+color:#475569;
+font-size:12px;
+padding:6px 12px;
+border-bottom:1px solid #e2e8f0;
+">
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  document.getElementById("fileTitleBanner").textContent = document.title;
+});
+</script>
+
+
+<div style="font-size:11px;color:#888;padding:6px 10px;"></div>
 
 
 <header>
+  <div id="htmlNameBar" style="background:#e5e7eb;color:#374151;font-size:13px;padding:6px 10px;border-radius:10px;display:inline-block;width:fit-content;"></div>
   <div class="row">
     <label for="userSelect">Utilisateur</label>
     <select id="userSelect"></select>
@@ -643,14 +660,24 @@ label[for="emplacement"] {
   // =========================
   const CONTEXTS = {
     vendeur: ["Home","Offres","Publish","Scan"],
-    acheteur: ["Home","Offres","Favoris","QR"]
+    acheteur: ["Home","Offres","QR"]
   };
 
   const USERS = [
     {id:"vendeur1",label:"Vendeur1",context:"vendeur",profile:{nom:"Paul Martin", adresse:"12 rue des Lilas, 75010 Paris"}, location:{lat:48.8721,lng:2.3656}},
     {id:"vendeur2",label:"Vendeur2",context:"vendeur",profile:{nom:"Claire Dubois", adresse:"48 avenue Victor Hugo, 69002 Lyon"}, location:{lat:45.7578,lng:4.8320}},
+  {
+    id:"vendeur3",
+    label:"Vendeur3",
+    context:"vendeur",
+    profile:{
+      nom:"Bouboule",
+      adresse:"8 avenue Jean Jaurès, 69002 Lyon"
+    },
+    location:{lat:45.7578,lng:4.8320}
+  },
     {id:"acheteur1",label:"Acheteur1",context:"acheteur",profile:{nom:"Lucas Bernard", adresse:"5 boulevard de la République, 31000 Toulouse"}},
-    {id:"acheteur2",label:"Acheteur2",context:"acheteur",profile:{nom:"Emma Lefèvre", adresse:"22 rue Nationale, 59000 Lille"}},
+    {id:"acheteur2",label:"Acheteur2",context:"acheteur",profile:{nom:"Bubble Time", adresse:"22 rue Nationale, 59000 Lille"}},
   ];
 
   // =========================
@@ -717,7 +744,19 @@ label[for="emplacement"] {
   // =========================
   // Favs / Valid / Reserve (par acheteur)
   // =========================
-  function loadFavsAll(){ return loadJSON(FAVS_KEY, {}); }
+  
+  // ===== V9 OFFERS UI STATE =====
+  function ensureOffersUI(u){
+    state[u.id].offersUI ??= {
+      category: "all",
+      shop: "all",
+      favoritesOnly: false,
+      view: "list" // list | map
+    };
+    saveState();
+  }
+
+function loadFavsAll(){ return loadJSON(FAVS_KEY, {}); }
   function saveFavsAll(obj){ saveJSON(FAVS_KEY, obj); }
   function isFav(buyerId, offerId){
     const all = loadFavsAll();
@@ -915,8 +954,36 @@ label[for="emplacement"] {
   // =========================
   // Offers cards
   // =========================
-  function renderOffers(u, mode){
-    const allOffers = loadOffers();
+  
+  // ===== V9 helper: apply filters (only in Acheteur > onglet Offres) =====
+  function applyOffersUIFilters(u, offers){
+    try{
+      if(u?.context !== "acheteur") return offers;
+      if(state?.[u.id]?.tab !== "Offres") return offers;
+      const ui = state?.[u.id]?.offersUI;
+      if(!ui) return offers;
+
+      let out = [...offers];
+
+      if(ui.category && ui.category !== "all")
+        out = out.filter(o => o.category === ui.category);
+
+      if(ui.shop && ui.shop !== "all")
+        out = out.filter(o => o.sellerId === ui.shop);
+
+      if(ui.favoritesOnly)
+        out = out.filter(o => isFav(u.id, o.id));
+
+      return out;
+    }catch(e){
+      console.warn("applyOffersUIFilters error", e);
+      return offers;
+    }
+  }
+
+function renderOffers(u, mode){
+    let allOffers = loadOffers();
+    allOffers = applyOffersUIFilters(u, allOffers);
 
     const selectedCats = (u.context === "acheteur")
       ? (state[u.id]?.buyerPrefs?.categories || [])
@@ -929,7 +996,7 @@ label[for="emplacement"] {
     } else {
       const favs = favIdsForBuyer(u.id);
       if (mode === "favorites") visible = allOffers.filter(o => favs.has(o.id));
-      else visible = allOffers.filter(o => !favs.has(o.id)); // Offres acheteur = NON favorisées
+      else visible = [...allOffers]; // Offres acheteur = toutes (favoris inclus via toggle)
 
       // Filtre catégories côté acheteur (comportement inchangé)
       if (catSet.size === 0) visible = [];
@@ -967,7 +1034,7 @@ label[for="emplacement"] {
                         const img = imgs[o.sellerId] || null;
                         if (img) {
                           return `
-                            <div style="width:70px;height:70px;border-radius:14px;overflow:hidden">
+                            <div class="sellerLink" data-seller-id="${escapeHtml(o.sellerId)}" style="width:70px;height:70px;border-radius:14px;overflow:hidden;cursor:pointer">
                               <img src="${img}" style="width:100%;height:100%;object-fit:cover">
                             </div>
                           `;
@@ -1127,7 +1194,7 @@ function renderHome(u){
             <input id="nom" value="${escapeHtml(p.nom || "")}">
           </div>
           <div>
-            <label>Adresse</label>
+            ${u.context === "vendeur" ? `<label>Adresse</label>` : ``}
             <input id="adr" value="${escapeHtml(p.adresse || "")}">
 
 ${u.context === "vendeur" ? `
@@ -1165,18 +1232,12 @@ ${u.context === "acheteur" ? `
           </div>
 
           <div style="margin-top:16px">
-            <div class="muted" style="margin-bottom:8px">Emplacement du vendeur</div>
             <div id="map" style="height:320px;width:100%;border-radius:12px;overflow:hidden"></div>
           </div>
         ` : ``}
 
         ${u.context === "acheteur" ? `
           <div style="margin-top:16px">
-            <label>Emplacement</label>
-            <select id="emplacement">
-              <option value="">-- choisir --</option>
-              ${Array.from({length:5},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("")}
-            </select>
           </div>
 
           <div style="margin-top:16px">
@@ -1189,7 +1250,7 @@ ${u.context === "acheteur" ? `
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               ${["Mode","Concert","Alimentation","Sport"].map(c=>`
                 <label class="toggleBox" style="cursor:pointer">
-                  <input type="checkbox" class="catToggle" value="${c}">
+                  <input type="checkbox" class="catToggle" value="${c}" checked>
                   <span>${c}</span>
                 </label>
               `).join("")}
@@ -1520,14 +1581,193 @@ document.getElementById("pub").addEventListener("click", () => {
     }
 
     if (tab === "Offres") {
+
+      // V9: filtres + switch Maps/Liste (Acheteur uniquement)
+      if (u.context !== "acheteur") {
+        content.innerHTML = `
+          <div class="card">
+            ${renderOffers(u, "all")}
+          </div>
+        `;
+        return;
+      }
+
+      ensureOffersUI(u);
+      const ui = state[u.id].offersUI;
+
+      const allOffers = loadOffers();
+
+      // options listbox
+      const categories = ["all", ...Array.from(new Set(allOffers.map(o => o.category).filter(Boolean)))];
+
+      const shopsIds = ["all", ...Array.from(new Set(allOffers.map(o => o.sellerId).filter(Boolean)))];
+
       content.innerHTML = `
         <div class="card">
-          
-          
-          ${renderOffers(u, "all")}
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+
+            <label style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:12px;color:var(--muted)">Catégorie</span>
+              <select id="filterCategory">
+                ${categories.map(c =>
+                  `<option value="${c}" ${ui.category===c?"selected":""}>${c==="all"?"Toutes":c}</option>`
+                ).join("")}
+              </select>
+            </label>
+
+            <label style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:12px;color:var(--muted)">Shops</span>
+              <select id="filterShop">
+                ${shopsIds.map(s => {
+                  const seller = getUser(s);
+                  const label = (s==="all") ? "Tous shops" : (seller?.profile?.nom || seller?.label || s);
+                  return `<option value="${s}" ${ui.shop===s?"selected":""}>${label}</option>`;
+                }).join("")}
+              </select>
+            </label>
+
+            <label style="display:flex;align-items:center;gap:8px;margin-top:18px">
+              <input type="checkbox" id="filterFav" ${ui.favoritesOnly?"checked":""} checked>
+              ⭐ Favoris
+            </label>
+
+            <button id="toggleView" class="primary" style="margin-top:10px">
+              ${ui.view==="list"?"🗺️ Maps":"📋 Liste"}
+            </button>
+
+          </div>
+
+          <div id="offersContainer"></div>
+
         </div>
       `;
-      if (u.context === "acheteur") wireToggles(u);
+
+      function getFilteredOffers(){
+        let offers = loadOffers();
+
+        // Apply same logic as list (only for tab Offres)
+        offers = applyOffersUIFilters(u, offers);
+
+        return offers;
+      }
+
+      function renderList(){
+        document.getElementById("offersContainer").innerHTML =
+          renderOffers(u, "all");
+        wireToggles(u);
+      }
+
+      function renderMap(){
+
+        const container = document.getElementById("offersContainer");
+        container.innerHTML =
+          `<div id="mapView" style="height:420px;border-radius:12px;overflow:hidden;border:1px solid var(--border)"></div>`;
+
+        const offers = getFilteredOffers();
+
+        // Initialisation neutre
+        const map = L.map("mapView").setView([0,0], 2);
+
+        // === POSITION DU DEVICE ===
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+
+              const deviceIcon = L.icon({
+        iconUrl: "data:image/svg+xml;base64," + btoa(`
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="48">
+            <path d="M16 0C7 0 0 7 0 16c0 12 16 32 16 32s16-20 16-32C32 7 25 0 16 0z"
+                  fill="#00C853"/>
+            <circle cx="16" cy="16" r="6" fill="white"/>
+          </svg>
+        `),
+        iconSize: [32,48],
+        iconAnchor: [16,48],
+        popupAnchor: [0,-40]
+      });
+
+      L.marker([lat, lng], { icon: deviceIcon })
+        .addTo(map)
+        .bindPopup("📍 Ma position");
+
+              map.setView([lat, lng], 14);
+            },
+            err => {
+              console.log("Geolocation error:", err);
+            },
+            {
+              enableHighAccuracy: true,
+              maximumAge: 0,
+              timeout: 8000
+            }
+          );
+        }L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "© OpenStreetMap"
+        }).addTo(map);
+
+        const bounds = [];
+        
+
+        offers.forEach(o => {
+          const geo = getGeo(o.sellerId);
+          if(!geo) return;
+
+          const marker = L.marker([geo.lat, geo.lng]).addTo(map);
+          bounds.push([geo.lat, geo.lng]);
+
+          const distance = computeDistanceForBuyer(o, u.id);
+          const status = displayBuyerOfferStatus(o, u.id) || "-";
+          const sellerName = sellerDisplayName(o.sellerId);
+
+          marker.bindPopup(`
+            <b>${o.value}</b><br>
+            ${o.category || "-"}<br>
+            🏬 ${sellerName}<br>
+            📍 ${distance != null ? distance+" m" : "-"}<br>
+            ${status}
+          `);
+        });
+
+        if (bounds.length >= 2) {
+          try{ map.fitBounds(bounds, { padding: [30, 30] }); }catch(e){}
+        }
+      }
+
+      function refreshView(){
+        ui.view === "list" ? renderList() : renderMap();
+      }
+
+      refreshView();
+
+      // ===== UI EVENTS =====
+
+      document.getElementById("filterCategory").onchange = e=>{
+        ui.category = e.target.value;
+        saveState();
+        refreshView();
+      };
+
+      document.getElementById("filterShop").onchange = e=>{
+        ui.shop = e.target.value;
+        saveState();
+        refreshView();
+      };
+
+      document.getElementById("filterFav").onchange = e=>{
+        ui.favoritesOnly = e.target.checked;
+        saveState();
+        refreshView();
+      };
+
+      document.getElementById("toggleView").onclick = ()=>{
+        ui.view = ui.view === "list" ? "map" : "list";
+        saveState();
+        render(u);
+      };
+
       return;
     }
 
@@ -1673,7 +1913,7 @@ document.getElementById("pub").addEventListener("click", () => {
     if (!overlay || !body) return;
     body.innerHTML = `
       <div style="margin-bottom:8px">Nom : <b>${escapeHtml(sellerDisplayName(sellerId))}</b></div>
-      <div>Adresse : <b>${escapeHtml(sellerAddress(sellerId))}</b></div>
+      
     
       <div style="margin-top:12px">
         <iframe
